@@ -15,7 +15,7 @@ app.get("/scrape", async (req, res) => {
     const page = await browser.newPage();
     let m3u8Url = null;
 
-    // Interceptar peticiones y mostrar todas
+    // Interceptar todas las peticiones y mostrar en consola
     page.on("request", (request) => {
       const url = request.url();
       console.log("➡️ Petición:", url);
@@ -29,7 +29,7 @@ app.get("/scrape", async (req, res) => {
       waitUntil: "networkidle"
     });
 
-    // Esperar hasta 60 segundos a que aparezca el player
+    // Esperar a que aparezca el player (máx 60s)
     await page.waitForSelector("video, iframe, #player", { timeout: 60000 }).catch(() => {
       console.warn("⏱️ Timeout: no se detectó el player en 60s");
     });
@@ -44,7 +44,7 @@ app.get("/scrape", async (req, res) => {
   } catch (err) {
     console.error("❌ Error en scraper:", err);
     if (browser) await browser.close();
-    res.status(500).json({ error: "Scraper falló", detail: err.message });
+    res.status(500).json({ error: "Scraper falló" });
   }
 });
 
