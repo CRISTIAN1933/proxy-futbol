@@ -2,40 +2,47 @@ import express from "express";
 import { chromium } from "playwright";
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.get("/scrape", async (req, res) => {
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
-
-  let m3u8Url = null;
-
-  // Interceptar peticiones
-  page.on("request", (request) => {
-    const url = request.url();
-    if (url.includes(".m3u8")) {
-      console.log("🎯 M3U8 detectado:", url);
-      m3u8Url = url;
-    }
-  });
-
+  let browser;
   try {
-    await page.goto("https://librefutboltv.su/tyc-sports/", {
-      waitUntil: "networkidle",
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"]
     });
 
-    // Esperar unos segundos a que cargue el player
-    await page.waitForTimeout(8000);
+    const page = await browser.newPage();
+    let m3u8Url = null;
+
+    // Interceptar peticiones
+    page.on("request", (request) => {
+      const url = request.url();
+      if (url.includes("index.m3u8?")) {
+        console.log("🎯 M3U8 válido detectado:", url);
+        m3u8Url = url;
+      }
+    });
+
+    await page.goto("https://librefutboltv.su/tyc-sports/", {
+      waitUntil: "networkidle"
+    });
+
+    // Esperar a que aparezca el player (más confiable que un timeout fijo)
+    await page.waitForSelector("video, iframe, #player", { timeout: 15000 }).catch(() => {
+      console.warn("⏱️ Timeout: no se detectó el player en 15s");
+    });
 
     await browser.close();
 
     if (m3u8Url) {
       res.json({ m3u8: m3u8Url });
     } else {
-      res.json({ error: "No se detectó ningún m3u8" });
+      res.status(404).json({ error: "No se detectó ningún index.m3u8" });
     }
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error en scraper:", err);
+    if (browser) await browser.close();
     res.status(500).json({ error: "Scraper falló" });
   }
 });
